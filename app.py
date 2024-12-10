@@ -1,25 +1,29 @@
-﻿from google.oauth2.credentials import Credentials
+﻿import discord
+from discord import app_commands
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import datetime
 import os
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
+load_dotenv(dotenv_path='.env')
 
 # Escopo para acesso ao Google Calendar
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
-
 def authenticate_google():
-    """Autentica o usuário no Google API e retorna as credenciais."""
+    """Autenticando o usuário no Google API e retornando as credenciais."""
     creds = None
-    token_path = 'token.json'
-    credentials_path = 'credentials.json'
+    token_path = os.getenv('GOOGLE_TOKEN_PATH', 'token.json')
+    credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH', 'credentials.json')
 
-    # Verifica se já existe um token salvo
     if os.path.exists(token_path):
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
 
-    # Se não houver token ou ele for inválido, solicita autenticação
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -30,12 +34,10 @@ def authenticate_google():
             flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
             creds = flow.run_local_server(port=0)
 
-        # Salva o token para reutilização
         with open(token_path, 'w') as token:
             token.write(creds.to_json())
 
     return creds
-
 
 def create_event(start_datetime, end_datetime, summary, description="", location=""):
     """Cria um evento no Google Calendar."""
@@ -64,37 +66,56 @@ def create_event(start_datetime, end_datetime, summary, description="", location
         }
 
         created_event = service.events().insert(calendarId='primary', body=event).execute()
-        print(f"Evento criado com sucesso: {created_event.get('htmlLink')}\n")
+        return created_event.get('htmlLink')
     except Exception as e:
         print(f"Erro ao criar evento: {e}")
+        return None
 
+# Configuração do bot Discord
+class CalendarBot(discord.Client):
+    def __init__(self, intents):
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
 
-def get_event_details():
-    """Solicita ao usuário os detalhes do evento."""
-    summary = input("Título do evento: ")
-    description = input("Descrição do evento (opcional): ")
-    location = input("Localização do evento (opcional): ")
+    async def setup_hook(self):
+        # Registra os comandos no servidor
+        await self.tree.sync()
 
-    start_date = input("Data de início (AAAA-MM-DD): ")
-    start_time = input("Horário de início (HH:MM): ")
-    end_date = input("Data de término (AAAA-MM-DD): ")
-    end_time = input("Horário de término (HH:MM): ")
+intents = discord.Intents.default()
+bot = CalendarBot(intents=intents)
 
+@bot.event
+async def on_ready():
+    print(f"Bot conectado como {bot.user}")
+
+@bot.tree.command(name="agendar", description="Agenda um evento no Google Calendar.")
+@app_commands.describe(
+    titulo="Título do evento",
+    inicio="Início no formato AAAA-MM-DDTHH:MM",
+    termino="Término no formato AAAA-MM-DDTHH:MM",
+    descricao="Descrição do evento (opcional)",
+    local="Localização do evento (opcional)"
+)
+async def agendar(interaction: discord.Interaction, titulo: str, inicio: str, termino: str, descricao: str = "", local: str = ""):
+    """
+    Comando para criar um evento no Google Calendar usando slash command.
+    """
     try:
-        start_datetime = datetime.datetime.fromisoformat(f"{start_date}T{start_time}")
-        end_datetime = datetime.datetime.fromisoformat(f"{end_date}T{end_time}")
-        return start_datetime, end_datetime, summary, description, location
+        # Converte os horários para datetime
+        start_datetime = datetime.datetime.fromisoformat(inicio)
+        end_datetime = datetime.datetime.fromisoformat(termino)
+
+        # Cria o evento
+        link = create_event(start_datetime, end_datetime, titulo, descricao, local)
+
+        if link:
+            await interaction.response.send_message(f"Evento criado com sucesso! Link: {link}")
+        else:
+            await interaction.response.send_message("Ocorreu um erro ao criar o evento.")
     except ValueError as ve:
-        print(f"Erro no formato da data ou hora: {ve}")
-        return None, None, None, None, None
+        await interaction.response.send_message(f"Erro no formato da data/hora: {ve}")
+    except Exception as e:
+        await interaction.response.send_message(f"Ocorreu um erro inesperado: {e}")
 
-
-if __name__ == "__main__":
-    print("\nBem-vindo Calendar-Bot, o criador de eventos automatizados do Google Calendar!\n")
-    event_details = get_event_details()
-
-    if all(event_details):
-        start_datetime, end_datetime, summary, description, location = event_details
-        create_event(start_datetime, end_datetime, summary, description, location)
-    else:
-        print("Detalhes do evento inválidos. Por favor, tente novamente.")
+# Inicializa o bot
+bot.run(os.getenv('DISCORD_TOKEN'))
