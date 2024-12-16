@@ -6,6 +6,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import datetime
 import os
+import json
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente do arquivo .env
