@@ -32,7 +32,7 @@ def authenticate_google():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_config(json.loads(credentials_json), SCOPES)
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_console()
 
         with open(token_json, 'w') as token:
             token.write(creds.to_json())
