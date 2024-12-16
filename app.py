@@ -16,27 +16,11 @@ load_dotenv()
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 def authenticate_google():
-    """Autenticando o usuário no Google API e retornando as credenciais."""
-    creds = None
-    token_json = os.getenv('GOOGLE_TOKEN_JSON')
     credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
-
-    if not token_json or not credentials_json:
-        raise EnvironmentError("As variáveis 'GOOGLE_TOKEN_JSON' e 'GOOGLE_CREDENTIALS_JSON' precisam estar definidas no .env")
-
-    if os.path.exists(token_json):
-        creds = Credentials.from_authorized_user_file(token_json, SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_config(json.loads(credentials_json), SCOPES)
-            creds = flow.run_console()
-
-        with open(token_json, 'w') as token:
-            token.write(creds.to_json())
-
+    if not credentials_json:
+        raise EnvironmentError("A variável 'GOOGLE_CREDENTIALS_JSON' precisa estar definida no .env")
+    
+    creds = Credentials.from_service_account_info(json.loads(credentials_json), scopes=SCOPES)
     return creds
 
 def create_event(start_datetime, end_datetime, summary, description="", location=""):
