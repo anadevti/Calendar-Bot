@@ -1,4 +1,4 @@
-﻿import discord
+import discord
 from discord import app_commands
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
-load_dotenv(dotenv_path='.env')
 
 # Escopo para acesso ao Google Calendar
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -18,8 +17,11 @@ SCOPES = ['https://www.googleapis.com/auth/calendar']
 def authenticate_google():
     """Autenticando o usuário no Google API e retornando as credenciais."""
     creds = None
-    token_path = os.getenv('GOOGLE_TOKEN_PATH', 'token.json')
-    credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH', 'credentials.json')
+    token_path = os.getenv('GOOGLE_TOKEN_PATH')
+    credentials_path = os.getenv('GOOGLE_CREDENTIALS_PATH')
+
+    if not token_path or not credentials_path:
+        raise EnvironmentError("As variáveis 'GOOGLE_TOKEN_PATH' e 'GOOGLE_CREDENTIALS_PATH' precisam estar definidas no .env")
 
     if os.path.exists(token_path):
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
